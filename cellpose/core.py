@@ -900,7 +900,9 @@ class UnetModel():
                 lavg += train_loss
                 nsum += len(imgi) 
             
-            if iepoch%10==0 or iepoch==5:
+            #changement ici pour logger la losse à chaque epoch
+            #if iepoch%10==0 or iepoch==5: #original line
+            if iepoch%1==0: #new line
                 lavg = lavg / nsum
                 if test_data is not None:
                     lavgt, nsum = 0., 0
