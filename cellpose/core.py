@@ -788,13 +788,19 @@ class UnetModel():
             self.criterion  = nn.MSELoss(reduction='mean')
             self.criterion2 = nn.BCEWithLogitsLoss(reduction='mean')
             
-    def _train_net(self, train_data, train_labels, 
+   def _train_net(self, train_data, train_labels, 
               test_data=None, test_labels=None,
               save_path=None, save_every=100, save_each=False,
               learning_rate=0.2, n_epochs=500, momentum=0.9, weight_decay=0.00001, 
-              SGD=True, batch_size=8, nimg_per_epoch=None, rescale=True, model_name=None): 
+              SGD=True, batch_size=8, nimg_per_epoch=None, rescale=True, model_name=None, early_stopping=True, patience=5): #!add early stopping and patience parameters
         """ train function uses loss function self.loss_fn in models.py"""
-        
+        #!new code 
+        if early_stopping: 
+            # initialize best_loss to a high number (or infinity)
+            best_loss = np.inf
+            # initialize counter for epochs without improvement
+            no_improvement_counter = 0 
+
         d = datetime.datetime.now()
         
         self.n_epochs = n_epochs
@@ -882,6 +888,13 @@ class UnetModel():
             rperm = np.random.permutation(nimg)
             inds_all = np.hstack((inds_all, rperm))
         
+        # initialize best_loss to a high number (or infinity)
+        best_loss = np.inf #new
+        # set the patience
+        patience = patience #new
+        # initialize counter for epochs without improvement
+        no_improvement_counter = 0 #new
+
         for iepoch in range(self.n_epochs):    
             if SGD:
                 self._set_learning_rate(self.learning_rate[iepoch])
@@ -920,6 +933,8 @@ class UnetModel():
                         test_loss = self._test_eval(imgi, lbl)
                         lavgt += test_loss
                         nsum += len(imgi)
+                    
+                    avg_test_loss = lavgt/nsum  # new
 
                     core_logger.info('Epoch %d, Time %4.1fs, Loss %2.4f, Loss Test %2.4f, LR %2.4f'%
                             (iepoch, time.time()-tic, lavg, lavgt/nsum, self.learning_rate[iepoch]))
@@ -928,28 +943,68 @@ class UnetModel():
                             (iepoch, time.time()-tic, lavg, self.learning_rate[iepoch]))
                 
                 lavg, nsum = 0, 0
-                            
-            if save_path is not None:
-                if iepoch==self.n_epochs-1 or iepoch%save_every==1:
-                    # save model at the end
-                    if save_each: #separate files as model progresses 
-                        if model_name is None:
-                            file_name = '{}_{}_{}_{}'.format(self.net_type, file_label, 
-                                                             d.strftime("%Y_%m_%d_%H_%M_%S.%f"),
-                                                             'epoch_'+str(iepoch)) 
+
+            if early_stopping:
+                #early stopping
+                if avg_test_loss < best_loss: #new
+                    # if the current test loss is lower, it's an improvement
+                    best_loss = avg_test_loss #new
+                    # reset counter
+                    no_improvement_counter = 0 #new
+                    #move the save part in this block so the model is saved each time a new best loss is found
+                    if save_path is not None:
+                        #if iepoch==self.n_epochs-1 or iepoch%save_every==1: #old saving condition
+                        # save model at the end
+                        if save_each: #separate files as model progresses 
+                            if model_name is None:
+                                file_name = '{}_{}_{}_{}'.format(self.net_type, file_label, 
+                                                                d.strftime("%Y_%m_%d_%H_%M_%S.%f"),
+                                                                'epoch_'+str(iepoch)) 
+                            else:
+                                file_name = '{}_{}'.format(model_name, 'epoch_'+str(iepoch))
                         else:
-                            file_name = '{}_{}'.format(model_name, 'epoch_'+str(iepoch))
+                            if model_name is None:
+                                file_name = '{}_{}_{}'.format(self.net_type, file_label, d.strftime("%Y_%m_%d_%H_%M_%S.%f"))
+                            else:
+                                file_name = model_name
+                        file_name = os.path.join(file_path, file_name)
+                        ksave += 1
+                        core_logger.info(f'saving network parameters to {file_name}')
+                        self.net.save_model(file_name)
                     else:
-                        if model_name is None:
-                            file_name = '{}_{}_{}'.format(self.net_type, file_label, d.strftime("%Y_%m_%d_%H_%M_%S.%f"))
-                        else:
-                            file_name = model_name
-                    file_name = os.path.join(file_path, file_name)
-                    ksave += 1
-                    core_logger.info(f'saving network parameters to {file_name}')
-                    self.net.save_model(file_name)
+                        file_name = save_path
+                else: #new
+                    # if the current test loss is not lower, increment the counter
+                    no_improvement_counter += 1 #new
+
+                if no_improvement_counter >= patience: #new
+                    # if counter has reached the patience, stop training
+                    print(f'Early stopping at epoch {iepoch} due to no improvement in test loss for the last {patience} epochs.') #new
+                    print(f'Best model and model saved is one at epoch {iepoch-patience} epochs.') #new
+                    break #new
+                        
             else:
-                file_name = save_path
+                if save_path is not None:
+                    if iepoch==self.n_epochs-1 or iepoch%save_every==1: 
+                        # save model at the end
+                        if save_each: #separate files as model progresses 
+                            if model_name is None:
+                                file_name = '{}_{}_{}_{}'.format(self.net_type, file_label, 
+                                                                d.strftime("%Y_%m_%d_%H_%M_%S.%f"),
+                                                                'epoch_'+str(iepoch)) 
+                            else:
+                                file_name = '{}_{}'.format(model_name, 'epoch_'+str(iepoch))
+                        else:
+                            if model_name is None:
+                                file_name = '{}_{}_{}'.format(self.net_type, file_label, d.strftime("%Y_%m_%d_%H_%M_%S.%f"))
+                            else:
+                                file_name = model_name
+                        file_name = os.path.join(file_path, file_name)
+                        ksave += 1
+                        core_logger.info(f'saving network parameters to {file_name}')
+                        self.net.save_model(file_name)
+                    else:
+                        file_name = save_path
 
         # reset to mkldnn if available
         self.net.mkldnn = self.mkldnn
