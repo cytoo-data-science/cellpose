@@ -43,6 +43,9 @@ def logger_setup():
         log_file.unlink()
     except:
         print('creating new log file')
+    #le log ne semble pas se vider systématiquement
+    with open(log_file, 'w') as f:#ajout
+        pass#ajout
     logging.basicConfig(
                     level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s",
