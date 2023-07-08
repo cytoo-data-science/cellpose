@@ -788,7 +788,7 @@ class UnetModel():
             self.criterion  = nn.MSELoss(reduction='mean')
             self.criterion2 = nn.BCEWithLogitsLoss(reduction='mean')
             
-   def _train_net(self, train_data, train_labels, 
+    def _train_net(self, train_data, train_labels, 
               test_data=None, test_labels=None,
               save_path=None, save_every=100, save_each=False,
               learning_rate=0.2, n_epochs=500, momentum=0.9, weight_decay=0.00001, 
