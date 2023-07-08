@@ -890,8 +890,6 @@ class UnetModel():
         
         # initialize best_loss to a high number (or infinity)
         best_loss = np.inf #new
-        # set the patience
-        patience = patience #new
         # initialize counter for epochs without improvement
         no_improvement_counter = 0 #new
 
@@ -980,7 +978,7 @@ class UnetModel():
                 if no_improvement_counter >= patience: #new
                     # if counter has reached the patience, stop training
                     print(f'Early stopping at epoch {iepoch} due to no improvement in test loss for the last {patience} epochs.') #new
-                    print(f'Best model and model saved is one at epoch {iepoch-patience} epochs.') #new
+                    print(f'Best model (model saved) is one at epoch {iepoch-patience} epochs.') #new
                     break #new
                         
             else:
